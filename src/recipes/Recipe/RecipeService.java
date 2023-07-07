@@ -13,7 +13,6 @@ import recipes.Utils.RequestParameters;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -21,19 +20,15 @@ public class RecipeService {
 
     private final RecipeRepository recipeRepository;
 
-    private void checkIfRecipeExists(int id) {
-        if (!recipeRepository.existsById(id)){
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Recipe not found");
-        }
-    }
 
     public ResponseEntity<RecipeDto> getRecipe(int id) {
-        checkIfRecipeExists(id);
-        RecipeDto response = new RecipeDto(recipeRepository.getById(id));
-        return ResponseEntity.ok(response);
+        return recipeRepository.findById(id)
+                .map(RecipeDto::new)
+                .map(ResponseEntity::ok)
+                .orElseThrow(this::notFoundException);
     }
 
-    public ResponseEntity<?> createRecipe(RecipeDto dto) {
+    public ResponseEntity<Map<String,Integer>> createRecipe(RecipeDto dto) {
         Recipe recipe = new Recipe(dto);
         recipe.setUser(getCurrentUser());
         recipeRepository.save(recipe);
@@ -43,7 +38,6 @@ public class RecipeService {
     public ResponseEntity<?> deleteRecipe(int id) {
         recipeRepository.findById(id).ifPresentOrElse(this::checkIfIsRecipeOwner,
                 this::throwNotFoundException);
-
         recipeRepository.deleteById(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
@@ -77,6 +71,7 @@ public class RecipeService {
             params.getCategory().isEmpty() && params.getName().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Only one parameter is needed");
         }
+
         return (params.getCategory().isPresent()) ?
                 MapToDto(getByCategory(params.category())) :
                 MapToDto(getByName(params.name()));
@@ -88,13 +83,16 @@ public class RecipeService {
     }
 
     private void checkIfIsRecipeOwner(Recipe recipe) {
-        System.out.println(recipe.getUserId());
         if (recipe.getUserId() != getCurrentUser().getId()) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "");
             }
         }
 
+    private ResponseStatusException notFoundException() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND,"Recipe not found");
+    }
+
     private void throwNotFoundException(){
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND,"");
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Recipe not found");
     }
 }
